@@ -360,27 +360,23 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = {
-  apiKey: "AIzaSyB48T3mjUO20-PbKLdgVOU6p3Ega4Oe2p8",
-  authDomain: "aion-2-timer.firebaseapp.com",
-  projectId: "aion-2-timer",
-  storageBucket: "aion-2-timer.firebasestorage.app",
-  messagingSenderId: "385544715160",
-  appId: "1:385544715160:web:25c0b9ba8c380226cb89ed",
-  measurementId: "G-3Q914TBN8P"
-};
-
+        // Reverting to System Config to fix auth error
+        const firebaseConfig = JSON.parse(__firebase_config);
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = 'aion2_tracker_v1';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
         let unsubscribeSnapshot = null;
         let currentRoom = localStorage.getItem('aion2_room_id') || '';
         let isFirstLoad = true; 
 
         window.initFirebase = async () => {
-            await signInAnonymously(auth);
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
         };
 
         window.joinRoom = (roomId) => {
@@ -433,10 +429,12 @@
             }
         };
 
+        // Initialize
         window.initFirebase();
         
         onAuthStateChanged(auth, (user) => {
             if (user) {
+                // If we had a room saved, rejoin it automatically
                 if (currentRoom) {
                     window.joinRoom(currentRoom);
                 }
