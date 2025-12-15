@@ -360,27 +360,41 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Reverting to System Config to fix auth error
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // User Provided Config
+        const firebaseConfig = {
+          apiKey: "AIzaSyCFasj7ww7AnnQ2QYw0jyv79kJ4aFCf7QI",
+          authDomain: "aion222.firebaseapp.com",
+          projectId: "aion222",
+          storageBucket: "aion222.firebasestorage.app",
+          messagingSenderId: "988326833096",
+          appId: "1:988326833096:web:6943b8c172c4c43b8eeefd",
+          measurementId: "G-8R4VCLCYNC"
+        };
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const appId = 'aion2_tracker_v1';
 
         let unsubscribeSnapshot = null;
         let currentRoom = localStorage.getItem('aion2_room_id') || '';
         let isFirstLoad = true; 
 
         window.initFirebase = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
+             // For personal Firebase projects, make sure Anonymous Auth is enabled in the Firebase Console
+            try {
                 await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Firebase Auth Error:", error);
+                if(window.showToast) window.showToast("Firebase 連線錯誤: 請檢查後台是否開啟匿名登入");
             }
         };
 
         window.joinRoom = (roomId) => {
-            if (!auth.currentUser) return; 
+            if (!auth.currentUser) {
+                if(window.showToast) window.showToast("尚未連線至伺服器，請稍後再試");
+                return; 
+            }
             if (unsubscribeSnapshot) unsubscribeSnapshot(); 
 
             currentRoom = roomId;
@@ -412,6 +426,8 @@
                 }
             }, (error) => {
                 console.error("Sync error:", error);
+                // Permission errors (like auth/admin-restricted) will trigger this
+                if(window.showToast) window.showToast("同步錯誤: 權限不足或網域未授權");
                 if(window.updateConnectionUI) window.updateConnectionUI(false, roomId);
             });
         };
