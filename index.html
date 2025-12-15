@@ -110,10 +110,16 @@
                         <i class="fa-solid fa-volume-xmark" id="soundIcon"></i>
                     </button>
                     
-                    <!-- Multiplayer Button -->
-                    <button onclick="openRoomModal()" id="multiplayerBtn" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-md text-sm font-medium transition flex items-center border border-slate-600 mr-2">
-                        <i class="fa-solid fa-users mr-2"></i> <span id="roomStatusText">多人連線</span>
-                    </button>
+                    <!-- Multiplayer Button Group -->
+                    <div class="flex items-center">
+                        <button onclick="openRoomModal()" id="multiplayerBtn" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-md text-sm font-medium transition flex items-center border border-slate-600 mr-1">
+                            <i class="fa-solid fa-users mr-2"></i> <span id="roomStatusText">多人連線</span>
+                        </button>
+                        <!-- Disconnect Button (Initially Hidden) -->
+                        <button onclick="disconnectFromRoom()" id="disconnectBtn" class="hidden bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-md text-sm font-medium transition items-center border border-red-500 mr-2" title="斷開連線">
+                            <i class="fa-solid fa-power-off"></i>
+                        </button>
+                    </div>
 
                     <!-- Import Button -->
                     <label class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-md text-sm font-medium transition flex items-center cursor-pointer mr-2">
@@ -356,7 +362,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Using your personal Firebase Config
+        // User Provided Config
         const firebaseConfig = {
           apiKey: "AIzaSyCFasj7ww7AnnQ2QYw0jyv79kJ4aFCf7QI",
           authDomain: "aion222.firebaseapp.com",
@@ -370,7 +376,6 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        // Using a dynamic path for this project
         const appId = 'aion2_tracker_v1';
 
         let unsubscribeSnapshot = null;
@@ -427,6 +432,15 @@
                 if(window.showToast) window.showToast("同步錯誤: 權限不足或網域未授權");
                 if(window.updateConnectionUI) window.updateConnectionUI(false, roomId);
             });
+        };
+
+        window.disconnectFromRoom = () => {
+             if (unsubscribeSnapshot) unsubscribeSnapshot();
+             unsubscribeSnapshot = null;
+             currentRoom = '';
+             localStorage.removeItem('aion2_room_id');
+             if(window.updateConnectionUI) window.updateConnectionUI(false, '');
+             if(window.showToast) window.showToast("已斷開連線，目前使用本地資料");
         };
 
         window.saveToRemote = async (data) => {
@@ -535,20 +549,31 @@
                 showToast('系統初始化中，請稍後');
             }
         }
+        
+        function disconnectFromRoom() {
+            if(window.disconnectFromRoom) {
+                window.disconnectFromRoom();
+            }
+        }
 
         // Called by Firebase module
         window.updateConnectionUI = (connected, roomName) => {
             isFirebaseConnected = connected;
             const btn = document.getElementById('multiplayerBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
             const statusText = document.getElementById('roomStatusText');
             if (connected) {
                 btn.classList.remove('bg-slate-700');
                 btn.classList.add('bg-green-700', 'hover:bg-green-600', 'border-green-500');
                 statusText.innerText = `已連線: ${roomName}`;
+                disconnectBtn.classList.remove('hidden');
+                disconnectBtn.classList.add('flex');
             } else {
                 btn.classList.remove('bg-green-700', 'hover:bg-green-600', 'border-green-500');
                 btn.classList.add('bg-slate-700');
-                statusText.innerText = '多人連線 (離線)';
+                statusText.innerText = '多人連線';
+                disconnectBtn.classList.add('hidden');
+                disconnectBtn.classList.remove('flex');
             }
         };
 
