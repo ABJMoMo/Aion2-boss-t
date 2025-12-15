@@ -190,16 +190,18 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
   import { getDatabase, ref, onValue, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-  // --- 你的 Firebase 設定 ---
+  // --- 替換這裡開始 ---
+  // 請從 Firebase Console -> Project Settings -> General -> Your apps 複製 Config
   const firebaseConfig = {
-    apiKey: "AIzaSyCFasj7ww7AnnQ2QYw0jyv79kJ4aFCf7QI",
-    authDomain: "aion222.firebaseapp.com",
-    projectId: "aion222",
-    storageBucket: "aion222.firebasestorage.app",
-    messagingSenderId: "988326833096",
-    appId: "1:988326833096:web:6943b8c172c4c43b8eeefd",
-    measurementId: "G-8R4VCLCYNC"
-  };
+  apiKey: "AIzaSyCFasj7ww7AnnQ2QYw0jyv79kJ4aFCf7QI",
+  authDomain: "aion222.firebaseapp.com",
+  projectId: "aion222",
+  storageBucket: "aion222.firebasestorage.app",
+  messagingSenderId: "988326833096",
+  appId: "1:988326833096:web:6943b8c172c4c43b8eeefd",
+  measurementId: "G-8R4VCLCYNC"
+};
+  // --- 替換這裡結束 ---
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
@@ -512,6 +514,13 @@
       if(chIdx<0 || bIdx<0) return;
       
       const path = `${DB_PATH}/channels/${chIdx}/bosses/${bIdx}`;
+      // Direct update to Firebase
+      // We read full sharedData locally, modify, then set. 
+      // For atomicity, usually we use update(), but for this simple app set specific path is ok
+      // Or we can just clone sharedData, modify and setRoot.
+      
+      // Let's modify local clone and send back entire channels array or just this boss
+      // To keep it simple: Update specific boss node
       const bossRef = ref(db, path);
       // Merge
       const updatedBoss = { ...b, ...newProps };
