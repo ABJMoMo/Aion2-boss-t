@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AION 2｜多人共用 BOSS 計時器</title>
+  <style>
+    :root{
+      --bg:#0b0f17; --panel:#121a2a; --text:#e8eefc; --muted:#9fb0d0; --line:rgba(255,255,255,.10);
+      --accent:#7aa7ff; --danger:#ff6b6b; --good:#49d17d; --warn:#ffd166;
+      --shadow: 0 12px 30px rgba(0,0,0,.35); --radius: 16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans TC", Helvetica, Arial;
+    }
+    body.light{
+      --bg:#f6f8ff; --panel:#ffffff; --text:#0b1630; --muted:#55627e; --line:rgba(10,20,40,.10);
+      --accent:#2f66ff; --shadow: 0 12px 30px rgba(20,35,70,.12);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; background:
+        radial-gradient(1200px 600px at 10% 0%, rgba(122,167,255,.16), transparent 60%),
+        radial-gradient(900px 500px at 90% 10%, rgba(73,209,125,.12), transparent 55%),
+        var(--bg);
+      color:var(--text); font-family:var(--sans);
+    }
+    .wrap{max-width:1150px;margin:24px auto;padding:0 16px 40px}
+    .topbar{
+      display:flex; gap:12px; align-items:center; justify-content:space-between;
+      padding:16px; background:linear-gradient(180deg, rgba(255,255,255,.06), transparent), var(--panel);
+      border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow);
+      position:sticky; top:12px; z-index:10; backdrop-filter: blur(10px);
+    }
+    .title{display:flex; flex-direction:column; gap:4px}
+    .title h1{margin:0; font-size:18px; letter-spacing:.2px; display:flex; align-items:center; gap:8px;}
+    .live-dot {width:8px; height:8px; background:var(--good); border-radius:50%; box-shadow:0 0 8px var(--good); animation: pulse 2s infinite;}
+    @keyframes pulse { 0%{opacity:1} 50%{opacity:.4} 100%{opacity:1} }
+    .title .sub{color:var(--muted); font-size:12px; line-height:1.3}
+    .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:flex-end}
+    .btn,.chip,input[type="number"],input[type="range"]{
+      border-radius:12px; border:1px solid var(--line); background:rgba(255,255,255,.06);
+      color:var(--text); padding:9px 12px; font-size:13px;
+    }
+    body.light .btn, body.light .chip, body.light input{ background:#fff; }
+    .btn{cursor:pointer; transition:transform .06s ease, border-color .2s}
+    .btn:hover{border-color:rgba(122,167,255,.55)} .btn:active{transform:translateY(1px)}
+    .btn.danger{border-color:rgba(255,107,107,.35)} .btn.danger:hover{border-color:rgba(255,107,107,.65)}
+    .btn.primary{border-color:rgba(122,167,255,.35)} .btn.primary:hover{border-color:rgba(122,167,255,.70)}
+    .btn.good{border-color:rgba(73,209,125,.35)} .btn.good:hover{border-color:rgba(73,209,125,.70)}
+    .grid{display:grid; grid-template-columns: 1.25fr .75fr; gap:14px; margin-top:14px;}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr} .topbar{position:relative; top:0} }
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.06), transparent), var(--panel);
+      border:1px solid var(--line); border-radius:var(--radius);
+      box-shadow:var(--shadow); overflow:hidden;
+    }
+    .tabs{display:flex; gap:8px; padding:10px 12px; border-bottom:1px solid var(--line); flex-wrap:wrap}
+    .tab{
+      padding:7px 10px; border-radius:999px; border:1px solid var(--line);
+      background:rgba(255,255,255,.06); cursor:pointer; font-size:13px;
+    }
+    .tab.active{border-color:rgba(122,167,255,.7); box-shadow:0 0 0 3px rgba(122,167,255,.12) inset}
+    .body{padding:14px 16px}
+    .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between}
+    .kpi{display:flex; gap:10px; flex-wrap:wrap}
+    .kpi .chip{display:flex; align-items:center; gap:8px}
+    .hint{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45}
+    input[type="range"]{accent-color: var(--accent)}
+    .list{display:flex; flex-direction:column; gap:10px; margin-top:14px}
+    .item{
+      padding:12px; border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,.04);
+      display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center;
+    }
+    .meta{display:flex; flex-direction:column; gap:6px; min-width:0}
+    .nameRow{display:flex; gap:8px; align-items:center; min-width:0}
+    .name{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .star{cursor:pointer; font-size:16px; line-height:1; opacity:.9}
+    .star.off{opacity:.35}
+    .tiny{font-size:12px; color:var(--muted)}
+    .countdown{font-family:var(--mono); font-size:14px}
+    .badge{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid var(--line);
+      color:var(--muted);
+    }
+    .badge.good{color:var(--good); border-color:rgba(73,209,125,.25)}
+    .badge.warn{color:var(--warn); border-color:rgba(255,209,102,.25)}
+    .badge.danger{color:var(--danger); border-color:rgba(255,107,107,.25)}
+    .actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
+    .actions .btn{padding:8px 10px}
+    .favitem{
+      display:flex; justify-content:space-between; align-items:center;
+      padding:10px 12px; border:1px dashed var(--line); border-radius:14px;
+      margin-top:10px;
+    }
+    .favitem .left{display:flex; flex-direction:column; gap:4px; min-width:0}
+    .mono{font-family:var(--mono)}
+    .muted{color:var(--muted)}
+    .sync-status { font-size:11px; color:var(--muted); display:inline-flex; align-items:center; gap:6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">
+        <h1>
+          <span class="live-dot" title="連線中..."></span>
+          AION 2｜多人共用計時器
+        </h1>
+        <div class="sub">
+          雲端同步版：擊殺時間與備註將同步給所有隊友。<br>
+          音效與明暗設定為個人偏好。
+        </div>
+      </div>
+
+      <div class="controls">
+        <span class="chip" title="[全域設定] 活動模式：開啟後所有人的重生時間都會變更">
+          <label style="display:flex;gap:8px;align-items:center;cursor:pointer;">
+            <input type="checkbox" id="chkEvent" />
+            活動模式(共用)
+          </label>
+        </span>
+
+        <span class="chip">
+          <label style="display:flex;gap:8px;align-items:center;cursor:pointer;">
+            <input type="checkbox" id="chkSound" />
+            啟用提醒音
+          </label>
+        </span>
+
+        <span class="chip" title="暗黑/明亮切換">
+          <label style="display:flex;gap:8px;align-items:center;cursor:pointer;">
+            <input type="checkbox" id="chkLight" />
+            明亮模式
+          </label>
+        </span>
+
+        <span class="chip" style="display:flex;gap:10px;align-items:center;">
+          音量
+          <input type="range" id="rngVol" min="0" max="100" value="60" />
+          <button class="btn" id="btnMute">靜音</button>
+        </span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="tabs" id="tabs"></div>
+        <div class="body">
+          <div class="row" style="align-items:flex-end;">
+            <div class="kpi">
+              <span class="chip">提醒提前 <input id="notifyMin" type="number" min="0" max="180" style="width:84px" /> 分鐘</span>
+              <span class="chip">活動：<b id="eventLabel">OFF</b></span>
+            </div>
+            <div class="kpi">
+              <button class="btn primary" id="btnAddBoss">＋新增 BOSS</button>
+              <button class="btn" id="btnAddChannel">＋新增分流</button>
+              <button class="btn danger" id="btnReset" title="危險：會重置所有人的資料">重置所有資料</button>
+            </div>
+          </div>
+
+          <div class="hint">
+            <b>「擊殺」</b>＝更新雲端時間。<b>「手動設定」</b>可修正上次擊殺時間。<br>
+            提示：所有操作都會即時同步給正在觀看此頁面的隊友。
+          </div>
+
+          <div id="loading" style="padding:40px; text-align:center; color:var(--muted);">
+            正在連線至雲端資料庫...<br><span style="font-size:12px;opacity:0.7">若卡住請檢查 Firebase Config</span>
+          </div>
+          <div class="list" id="bossList" style="display:none"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="body">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+            <b>⭐ 個人收藏</b>
+            <span class="badge" id="favCount">0</span>
+          </div>
+          <div id="favBox"></div>
+          <div class="hint" style="margin-top:14px">
+            收藏清單是存在你個人的瀏覽器中，不會同步給別人。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getDatabase, ref, onValue, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+  // --- 你的 Firebase 設定 ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyCFasj7ww7AnnQ2QYw0jyv79kJ4aFCf7QI",
+    authDomain: "aion222.firebaseapp.com",
+    projectId: "aion222",
+    storageBucket: "aion222.firebasestorage.app",
+    messagingSenderId: "988326833096",
+    appId: "1:988326833096:web:6943b8c172c4c43b8eeefd",
+    measurementId: "G-8R4VCLCYNC"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const DB_PATH = 'aion2_boss_v1'; // 資料庫路徑
+
+  // Local Settings (Personal)
+  const LOCAL_KEY = "aion2_personal_settings";
+  const now = () => Date.now();
+  
+  // Default Shared Data (Only used if DB is empty)
+  const presetData = {
+    eventMode: false,
+    channels: [
+      {
+        id: "ch-elyos",
+        name: "天族",
+        bosses: [
+          {name:"西方的 凱爾農", baseMin:60, eventMin:30, note:""},
+          {name:"東方的 奈伊凱爾", baseMin:60, eventMin:30, note:""},
+          {name:"腐朽的 庫塔爾", baseMin:60, eventMin:30, note:""},
+          {name:"盛開的 柯琳", baseMin:120, eventMin:60, note:""},
+          {name:"護衛兵 提甘特", baseMin:180, eventMin:90, note:""},
+          {name:"狂鬥士 庫山", baseMin:240, eventMin:120, note:""},
+          {name:"祭司 加爾辛", baseMin:240, eventMin:120, note:""},
+          {name:"血牙 弗寧", baseMin:360, eventMin:180, note:""},
+          {name:"憤怒的 薩魯斯", baseMin:360, eventMin:180, note:""},
+          {name:"學者 勞拉", baseMin:240, eventMin:120, note:""},
+          {name:"追擊者 陶羅", baseMin:240, eventMin:120, note:""},
+          {name:"森林戰士 烏拉姆", baseMin:480, eventMin:240, note:""},
+          {name:"背教者 蕾伊拉", baseMin:360, eventMin:180, note:""},
+          {name:"黑色觸手 拉瓦", baseMin:480, eventMin:240, note:""},
+          {name:"百夫長 德米洛斯", baseMin:480, eventMin:240, note:""},
+          {name:"神聖的 安薩斯", baseMin:720, eventMin:360, note:""},
+          {name:"收穫管理者 莫夏布", baseMin:360, eventMin:180, note:""},
+          {name:"監視兵器 克納許", baseMin:480, eventMin:240, note:""},
+          {name:"研究官 賽特拉姆", baseMin:720, eventMin:360, note:""},
+          {name:"幻夢的 卡西亞", baseMin:720, eventMin:360, note:""},
+          {name:"沉默的 塔爾坦", baseMin:720, eventMin:360, note:""},
+          {name:"靈魂支配者 卡沙法", baseMin:720, eventMin:360, note:""},
+          {name:"軍團長 拉格塔", baseMin:1440, eventMin:720, note:""},
+          {name:"永恆的 加爾圖亞", baseMin:1440, eventMin:720, note:""},
+        ]
+      },
+      {
+        id: "ch-asmo",
+        name: "魔族",
+        bosses: [
+          {name:"融化的 達納爾", baseMin:60, eventMin:30, note:""},
+          {name:"黑色戰士 阿艾德", baseMin:60, eventMin:30, note:""},
+          {name:"忠誠的 拉吉特", baseMin:60, eventMin:30, note:""},
+          {name:"狂戰士 巴爾格", baseMin:120, eventMin:60, note:""},
+          {name:"血戰士 蘭納爾", baseMin:180, eventMin:90, note:""},
+          {name:"掠食者 加爾山", baseMin:240, eventMin:120, note:""},
+          {name:"欺瞞者 特里德", baseMin:240, eventMin:120, note:""},
+          {name:"藍色浪潮 凱爾皮娜", baseMin:240, eventMin:120, note:""},
+          {name:"參謀官 勒薩娜", baseMin:360, eventMin:180, note:""},
+          {name:"總監督官 努塔", baseMin:240, eventMin:120, note:""},
+          {name:"別動隊長 林克斯", baseMin:360, eventMin:180, note:""},
+          {name:"褻瀆者 諾布魯德", baseMin:480, eventMin:240, note:""},
+          {name:"亡魂的 阿坎‧阿克西歐斯", baseMin:480, eventMin:240, note:""},
+          {name:"中毒的 哈迪倫", baseMin:360, eventMin:180, note:""},
+          {name:"處刑者 巴爾西恩", baseMin:480, eventMin:240, note:""},
+          {name:"龍族部隊兵器 古魯塔", baseMin:720, eventMin:360, note:""},
+          {name:"百戰老將 修扎坎", baseMin:360, eventMin:180, note:""},
+          {name:"祕術的 卡魯卡", baseMin:480, eventMin:240, note:""},
+          {name:"黑暗深淵 比修貝達", baseMin:720, eventMin:360, note:""},
+          {name:"銳利的 希拉克", baseMin:720, eventMin:360, note:""},
+          {name:"沉默的 塔爾坦", baseMin:720, eventMin:360, note:""},
+          {name:"靈魂支配者 卡沙法", baseMin:720, eventMin:360, note:""},
+          {name:"軍團長 拉格塔", baseMin:1440, eventMin:720, note:""},
+          {name:"不滅的 加爾圖亞", baseMin:1440, eventMin:720, note:""},
+        ]
+      },
+      {
+        id: "ch-abyss",
+        name: "深淵",
+        bosses: [
+          {name:"監視者 凱拉", baseMin:60, eventMin:60, note:"活動模式時間不變（出現機率↑）"},
+          {name:"精靈王 阿格羅", baseMin:1440, eventMin:720, note:""},
+          {name:"守護神將 納赫瑪", baseMin:0, eventMin:0, note:"週末規則：平常僅週日；活動為週六/週日"},
+        ]
+      }
+    ]
+  };
+
+  // Pre-process preset to add IDs
+  function uid(prefix){ return `${prefix}-${Math.random().toString(16).slice(2,9)}`; }
+  presetData.channels.forEach(ch => {
+    ch.bosses = ch.bosses.map((b,i) => ({
+      ...b,
+      id: uid("b"),
+      lastKillAt: now() - (i%5)*12*60*1000 // Fake initial time
+    }));
+  });
+
+  // State Management
+  let localSettings = {
+    soundEnabled: false,
+    volume: 0.60,
+    muted: false,
+    lightMode: false,
+    notifyBeforeMin: 3,
+    activeChannelId: presetData.channels[0].id,
+    favorites: [] // Array of boss IDs
+  };
+  
+  let sharedData = null; // Will be synced from DB
+
+  function loadLocalSettings(){
+    try{
+      const raw = localStorage.getItem(LOCAL_KEY);
+      if(raw) localSettings = { ...localSettings, ...JSON.parse(raw) };
+    }catch(e){}
+  }
+  function saveLocalSettings(){ localStorage.setItem(LOCAL_KEY, JSON.stringify(localSettings)); }
+
+  // Sync Logic
+  function updateShared(newData){
+    set(ref(db, DB_PATH), newData);
+  }
+
+  // DOM
+  const $ = q => document.querySelector(q);
+  const els = {
+    tabs: $("#tabs"),
+    list: $("#bossList"),
+    favBox: $("#favBox"),
+    favCount: $("#favCount"),
+    chkSound: $("#chkSound"),
+    chkLight: $("#chkLight"),
+    chkEvent: $("#chkEvent"),
+    rngVol: $("#rngVol"),
+    btnMute: $("#btnMute"),
+    btnReset: $("#btnReset"),
+    notifyMin: $("#notifyMin"),
+    btnAddBoss: $("#btnAddBoss"),
+    btnAddChannel: $("#btnAddChannel"),
+    eventLabel: $("#eventLabel"),
+    loading: $("#loading")
+  };
+
+  // Audio
+  let audioCtx = null;
+  function ensureAudio(){ if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+  function beep(){
+    if(!localSettings.soundEnabled || localSettings.muted) return;
+    ensureAudio();
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, t);
+    const vol = Math.max(0, Math.min(1, localSettings.volume));
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.35 * vol, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.26);
+  }
+
+  // Formatting & Helpers
+  const pad2 = n => String(n).padStart(2,"0");
+  function fmtDuration(ms){
+    ms = Math.max(0, ms);
+    const s = Math.floor(ms/1000);
+    const hh = Math.floor(s/3600);
+    const mm = Math.floor((s%3600)/60);
+    const ss = s%60;
+    return `${pad2(hh)}:${pad2(mm)}:${pad2(ss)}`;
+  }
+  function fmtTime(ts){
+    const d = new Date(ts);
+    return `${pad2(d.getMonth()+1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+  }
+  function respawnMin(b){
+    const em = sharedData ? sharedData.eventMode : false;
+    const m = em ? (b.eventMin ?? b.baseMin) : (b.baseMin ?? b.eventMin);
+    return Math.max(0, Number(m)||0);
+  }
+  function nextSpawn(b){
+    const m = respawnMin(b);
+    return (b.lastKillAt ?? 0) + m*60*1000;
+  }
+  function activeChannel(){
+    if(!sharedData) return null;
+    return sharedData.channels.find(c => c.id === localSettings.activeChannelId) || sharedData.channels[0];
+  }
+  function isFav(id){ return localSettings.favorites.includes(id); }
+  function toggleFav(id){
+    if(isFav(id)) localSettings.favorites = localSettings.favorites.filter(x => x!==id);
+    else localSettings.favorites.push(id);
+    saveLocalSettings(); render();
+  }
+  function escapeHtml(s){
+    return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
+
+  // Notified Tracking (Memory only, per session)
+  const notifiedMap = new Set();
+
+  function render(){
+    if(!sharedData) return;
+    
+    // Global Styling
+    document.body.classList.toggle("light", !!localSettings.lightMode);
+    
+    // Control Sync
+    els.chkLight.checked = !!localSettings.lightMode;
+    els.chkSound.checked = !!localSettings.soundEnabled;
+    els.rngVol.value = Math.round((localSettings.volume ?? 0.6)*100);
+    els.btnMute.textContent = localSettings.muted ? "取消靜音" : "靜音";
+    els.notifyMin.value = localSettings.notifyBeforeMin ?? 3;
+    
+    // Shared Controls
+    els.chkEvent.checked = !!sharedData.eventMode;
+    els.eventLabel.textContent = sharedData.eventMode ? "ON" : "OFF";
+    els.eventLabel.style.color = sharedData.eventMode ? "var(--warn)" : "var(--muted)";
+
+    // Tabs
+    els.tabs.innerHTML = "";
+    sharedData.channels.forEach(ch => {
+      const t = document.createElement("button");
+      t.className = "tab" + (ch.id===localSettings.activeChannelId ? " active" : "");
+      t.textContent = ch.name;
+      t.onclick = () => { localSettings.activeChannelId = ch.id; saveLocalSettings(); render(); };
+      els.tabs.appendChild(t);
+    });
+
+    // List
+    const ch = activeChannel();
+    els.list.innerHTML = "";
+    if(!ch){
+       // Should not happen unless empty
+    } else {
+      const bosses = [...(ch.bosses||[])].sort((a,b)=> nextSpawn(a)-nextSpawn(b));
+      if(bosses.length === 0){
+        els.list.innerHTML = `<div class="tiny muted">此分流尚無資料。</div>`;
+      } else {
+        bosses.forEach(b => els.list.appendChild(renderBossItem(ch, b)));
+      }
+    }
+
+    // Favorites
+    renderFavorites();
+  }
+
+  function renderBossItem(ch, b){
+    const item = document.createElement("div");
+    item.className = "item";
+    
+    const fav = isFav(b.id);
+    
+    const meta = document.createElement("div");
+    meta.className = "meta";
+
+    const nameRow = document.createElement("div");
+    nameRow.className = "nameRow";
+
+    const star = document.createElement("span");
+    star.className = "star " + (fav ? "on" : "off");
+    star.textContent = fav ? "⭐" : "☆";
+    star.onclick = () => toggleFav(b.id);
+
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = b.name;
+
+    const m = respawnMin(b);
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = m>0 ? `${m} 分` : `需手動`;
+
+    nameRow.append(star, name, badge);
+
+    const cd = document.createElement("div");
+    cd.className = "countdown";
+    const tNext = nextSpawn(b);
+    const remain = tNext - now();
+    cd.textContent = `${fmtDuration(remain)}  ｜  ${fmtTime(tNext)}`;
+
+    // Status
+    const statusDiv = document.createElement("div");
+    statusDiv.className = "tiny";
+    const notifyMs = (localSettings.notifyBeforeMin||3)*60*1000;
+    let st = {text:"計時中", cls:"good"};
+    if(remain <= 0) st = {text:"已刷新", cls:"danger"};
+    else if(remain <= notifyMs) st = {text:`即將刷新`, cls:"warn"};
+    
+    const note = (b.note || "").trim();
+    statusDiv.innerHTML = `狀態：<span class="badge ${st.cls}">${st.text}</span>` + 
+      (note ? ` <span class="muted">｜</span> <span class="muted">${escapeHtml(note)}</span>` : "");
+    
+    // Sub
+    const sub = document.createElement("div");
+    sub.className = "tiny";
+    sub.textContent = `上次：${b.lastKillAt ? fmtTime(b.lastKillAt) : "無"}`;
+
+    meta.append(nameRow, cd, sub, statusDiv);
+
+    // Actions
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    // Update Helper
+    const updateBoss = (newProps) => {
+      // Find path to this boss
+      const chIdx = sharedData.channels.findIndex(c => c.id === ch.id);
+      const bIdx = sharedData.channels[chIdx].bosses.findIndex(x => x.id === b.id);
+      if(chIdx<0 || bIdx<0) return;
+      
+      const path = `${DB_PATH}/channels/${chIdx}/bosses/${bIdx}`;
+      const bossRef = ref(db, path);
+      // Merge
+      const updatedBoss = { ...b, ...newProps };
+      set(bossRef, updatedBoss); 
+    };
+
+    const btnKill = mkBtn("擊殺", "btn good", () => updateBoss({ lastKillAt: now() }));
+    
+    const btnSet = mkBtn("手動", "btn", () => {
+      const dt = prompt("輸入上次擊殺時間（YYYY-MM-DD HH:MM）：", "");
+      if(!dt) return;
+      const ts = parseUserDatetime(dt.trim());
+      if(!ts){ alert("時間格式錯誤"); return; }
+      updateBoss({ lastKillAt: ts });
+    });
+
+    const btnEdit = mkBtn("編輯", "btn primary", () => {
+      const newName = prompt("BOSS 名稱：", b.name);
+      if(newName === null) return;
+      const baseMin = prompt("平常重生（分）：", String(b.baseMin ?? 0));
+      const eventMin = prompt("活動重生（分）：", String(b.eventMin ?? 0));
+      const noteInput = prompt("備註：", b.note || "");
+      
+      const bM = Number(baseMin), eM = Number(eventMin);
+      if(!Number.isFinite(bM) || !Number.isFinite(eM)) return;
+
+      updateBoss({ 
+        name: newName.trim()||b.name, 
+        baseMin: bM, 
+        eventMin: eM,
+        note: noteInput
+      });
+    });
+
+    const btnDel = mkBtn("刪除", "btn danger", () => {
+       if(!confirm(`確定刪除「${b.name}」？這會同步刪除所有人的資料。`)) return;
+       // Remove from array
+       const chIdx = sharedData.channels.findIndex(c => c.id === ch.id);
+       const newBosses = sharedData.channels[chIdx].bosses.filter(x => x.id !== b.id);
+       set(ref(db, `${DB_PATH}/channels/${chIdx}/bosses`), newBosses);
+    });
+
+    actions.append(btnKill, btnSet, btnEdit, btnDel);
+    item.append(meta, actions);
+    return item;
+  }
+
+  function renderFavorites(){
+    els.favBox.innerHTML = "";
+    if(localSettings.favorites.length === 0){
+      els.favBox.innerHTML = `<div class="tiny muted" style="margin-top:10px">尚無收藏。</div>`;
+      els.favCount.textContent = "0";
+      return;
+    }
+    
+    const favItems = [];
+    sharedData.channels.forEach(ch => {
+      ch.bosses.forEach(b => {
+        if(isFav(b.id)) favItems.push({ch, b});
+      });
+    });
+    
+    favItems.sort((x,y) => nextSpawn(x.b) - nextSpawn(y.b));
+    els.favCount.textContent = favItems.length;
+
+    favItems.forEach(({ch, b}) => {
+      const row = document.createElement("div");
+      row.className = "favitem";
+      
+      const left = document.createElement("div");
+      left.className = "left";
+      left.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center;min-width:0">
+          <span class="badge">${escapeHtml(ch.name)}</span>
+          <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(b.name)}</b>
+        </div>
+        <div class="tiny mono">${fmtDuration(nextSpawn(b)-now())}</div>
+      `;
+      
+      const right = document.createElement("div");
+      right.className = "actions";
+      right.append(
+        mkBtn("前往", "btn", () => { 
+          localSettings.activeChannelId = ch.id; 
+          saveLocalSettings(); render(); 
+          window.scrollTo({top:0,behavior:"smooth"}); 
+        }),
+        mkBtn("X", "btn", () => toggleFav(b.id))
+      );
+      row.append(left, right);
+      els.favBox.appendChild(row);
+    });
+  }
+
+  function mkBtn(text, cls, onClick){
+    const b = document.createElement("button");
+    b.className = cls;
+    b.textContent = text;
+    b.onclick = onClick;
+    return b;
+  }
+  
+  function parseUserDatetime(s){
+    const m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})\s+(\d{2}):(\d{2})$/);
+    if(!m) return null;
+    const [_, y, mo, d, hh, mm] = m;
+    const dt = new Date(Number(y), Number(mo)-1, Number(d), Number(hh), Number(mm), 0, 0);
+    const ts = dt.getTime();
+    return Number.isFinite(ts) ? ts : null;
+  }
+
+  // Initialization
+  function init(){
+    loadLocalSettings();
+    
+    // Listen to Firebase
+    onValue(ref(db, DB_PATH), (snapshot) => {
+      const val = snapshot.val();
+      if(!val){
+        // Initialize DB if empty
+        set(ref(db, DB_PATH), presetData);
+      } else {
+        sharedData = val;
+        // Migration safety for new fields
+        if(!sharedData.channels) sharedData.channels = [];
+        els.loading.style.display = "none";
+        els.list.style.display = "flex";
+        render();
+      }
+    });
+
+    // Start Ticker
+    setInterval(() => {
+       if(sharedData) checkAlerts();
+       render();
+    }, 1000);
+  }
+
+  // Alerts
+  function checkAlerts(){
+    const notifyMs = (localSettings.notifyBeforeMin||0) * 60 * 1000;
+    if(notifyMs <= 0) return;
+
+    sharedData.channels.forEach(ch => {
+      ch.bosses.forEach(b => {
+        if(respawnMin(b) <= 0) return;
+        const remain = nextSpawn(b) - now();
+        
+        // Key for notification uniqueness: ID + LastKillTime
+        const notifyKey = `${b.id}_${b.lastKillAt}`;
+        
+        if(remain > 0 && remain <= notifyMs){
+           if(!notifiedMap.has(notifyKey)){
+             beep();
+             notifiedMap.add(notifyKey);
+           }
+        }
+      });
+    });
+  }
+
+  // Event Bindings
+  els.chkSound.onchange = () => { localSettings.soundEnabled = els.chkSound.checked; saveLocalSettings(); };
+  els.chkLight.onchange = () => { localSettings.lightMode = els.chkLight.checked; saveLocalSettings(); render(); };
+  els.rngVol.oninput = () => { localSettings.volume = Math.max(0, Math.min(1, Number(els.rngVol.value)/100)); saveLocalSettings(); };
+  els.btnMute.onclick = () => { localSettings.muted = !localSettings.muted; saveLocalSettings(); render(); };
+  els.notifyMin.onchange = () => { 
+    localSettings.notifyBeforeMin = Number(els.notifyMin.value); 
+    saveLocalSettings(); 
+    // Clear notification cache to re-evaluate
+    notifiedMap.clear();
+  };
+
+  // Shared setting bindings
+  els.chkEvent.onchange = () => {
+    if(!sharedData) return;
+    updateShared({ ...sharedData, eventMode: els.chkEvent.checked });
+  };
+  
+  els.btnReset.onclick = () => {
+    if(!confirm("警告：這會把「所有人」的資料重置回預設值！確定嗎？")) return;
+    updateShared(presetData);
+    alert("已重置雲端資料。");
+  };
+
+  els.btnAddChannel.onclick = () => {
+    const name = prompt("分流名稱：", `自訂分流 ${sharedData.channels.length+1}`);
+    if(!name) return;
+    const newCh = { id: uid("ch"), name: name.trim(), bosses: [] };
+    const newChannels = [...sharedData.channels, newCh];
+    updateShared({ ...sharedData, channels: newChannels });
+    // Switch to it locally
+    localSettings.activeChannelId = newCh.id;
+    saveLocalSettings();
+  };
+
+  els.btnAddBoss.onclick = () => {
+    const name = prompt("BOSS 名稱：", "新BOSS");
+    if(!name) return;
+    const baseMin = prompt("平常重生（分）：", "60");
+    const eventMin = prompt("活動重生（分）：", "30");
+    const bM = Number(baseMin), eM = Number(eventMin);
+    
+    if(!sharedData) return;
+    const chIdx = sharedData.channels.findIndex(c => c.id === localSettings.activeChannelId);
+    if(chIdx < 0) return;
+
+    const newBoss = {
+      id: uid("b"),
+      name: name.trim(),
+      baseMin: bM||0,
+      eventMin: eM||0,
+      note: "",
+      lastKillAt: now()
+    };
+    
+    const path = `${DB_PATH}/channels/${chIdx}/bosses`;
+    // We need to know the index length, but simple way is to read sharedData
+    const currentBosses = sharedData.channels[chIdx].bosses || [];
+    set(ref(db, path), [...currentBosses, newBoss]);
+  };
+  
+  window.addEventListener("pointerdown", () => {
+    if(audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  });
+
+  init();
+</script>
+</body>
+</html>
