@@ -111,23 +111,20 @@
                     </button>
                     
                     <!-- Multiplayer Button -->
-                    <button onclick="openRoomModal()" id="multiplayerBtn" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-md text-sm font-medium transition flex items-center border border-slate-600">
+                    <button onclick="openRoomModal()" id="multiplayerBtn" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-md text-sm font-medium transition flex items-center border border-slate-600 mr-2">
                         <i class="fa-solid fa-users mr-2"></i> <span id="roomStatusText">多人連線</span>
                     </button>
 
-                    <!-- Import/Export Dropdown -->
-                    <div class="relative group hidden sm:block">
-                        <button class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-md text-sm font-medium transition flex items-center">
-                            <i class="fa-solid fa-database mr-2"></i> 備份
-                        </button>
-                        <div class="absolute right-0 mt-2 w-32 bg-slate-800 rounded-md shadow-xl z-20 border border-slate-600 overflow-hidden hidden group-hover:block">
-                            <label class="block w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 cursor-pointer">
-                                匯入
-                                <input type="file" accept=".json" class="hidden" onchange="importData(this)">
-                            </label>
-                            <button onclick="exportData()" class="block w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700">匯出</button>
-                        </div>
-                    </div>
+                    <!-- Import Button -->
+                    <label class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-md text-sm font-medium transition flex items-center cursor-pointer mr-2">
+                        <i class="fa-solid fa-file-import mr-2"></i> 匯入
+                        <input type="file" accept=".json" class="hidden" onchange="importData(this)">
+                    </label>
+
+                    <!-- Export Button -->
+                    <button onclick="exportData()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-md text-sm font-medium transition flex items-center mr-2">
+                        <i class="fa-solid fa-file-export mr-2"></i> 匯出
+                    </button>
 
                     <button onclick="openModal()" class="bg-aion-accent hover:bg-sky-500 text-slate-900 px-3 py-2 rounded-md text-sm font-bold transition flex items-center shadow-lg shadow-aion-accent/20">
                         <i class="fa-solid fa-plus mr-1"></i> 新增
@@ -202,11 +199,10 @@
         <!-- Boss List (Table View) -->
         <div class="bg-slate-800 rounded-xl overflow-hidden shadow-xl border border-slate-700">
             <div class="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-900 border-b border-slate-700 text-xs font-bold text-slate-400 uppercase tracking-wider hidden md:grid">
-                <div class="col-span-4 lg:col-span-3">Boss 名稱 / 地區</div>
-                <div class="col-span-2 text-center">種族</div>
+                <div class="col-span-5">Boss 名稱 [地區]</div>
                 <div class="col-span-2 text-center">週期</div>
-                <div class="col-span-2 text-center">狀態 / 倒數</div>
-                <div class="col-span-2 lg:col-span-3 text-right">操作</div>
+                <div class="col-span-3 text-center">狀態 / 倒數 / 上次擊殺</div>
+                <div class="col-span-2 text-right">操作</div>
             </div>
             <div id="bossList" class="divide-y divide-slate-700"></div>
         </div>
@@ -356,12 +352,11 @@
 
     <!-- Firebase Logic Module -->
     <script type="module">
-        import { initializeApp } from "firebase/app";
-        import { getAnalytics } from "firebase/analytics";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // User Provided Config
+        // Using your personal Firebase Config
         const firebaseConfig = {
           apiKey: "AIzaSyCFasj7ww7AnnQ2QYw0jyv79kJ4aFCf7QI",
           authDomain: "aion222.firebaseapp.com",
@@ -375,6 +370,7 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        // Using a dynamic path for this project
         const appId = 'aion2_tracker_v1';
 
         let unsubscribeSnapshot = null;
@@ -387,7 +383,7 @@
                 await signInAnonymously(auth);
             } catch (error) {
                 console.error("Firebase Auth Error:", error);
-                if(window.showToast) window.showToast("Firebase 連線錯誤: 請檢查後台是否開啟匿名登入");
+                if(window.showToast) window.showToast("Firebase 連線錯誤: 請檢查後台是否開啟匿名登入或網域白名單");
             }
         };
 
@@ -598,7 +594,16 @@
             setInterval(updateClock, 1000);
             const now = new Date();
             now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-            document.getElementById('manualKillTime').value = now.toISOString().slice(0, 16);
+            
+            const manualInput = document.getElementById('manualKillTime');
+            manualInput.value = now.toISOString().slice(0, 16);
+            
+            // Add Enter key listener for manual time input
+            manualInput.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter') {
+                    saveManualTime();
+                }
+            });
         });
 
         function updateClock() {
@@ -922,10 +927,9 @@
 
                 row.innerHTML = `
                     <div class="col-span-4 lg:col-span-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                        <div class="font-bold text-white text-base truncate" title="${boss.name}">${boss.name}</div>
-                        <div class="text-xs text-slate-400 flex items-center truncate">
-                            <i class="fa-solid fa-map-pin mr-1 text-slate-500"></i>
-                            ${boss.location || '未知區域'}
+                        <div class="font-bold text-white text-base truncate" title="${boss.name}">
+                            ${boss.name}
+                            <span class="text-xs text-slate-400 font-normal ml-1">[${boss.location || '未知區域'}]</span>
                         </div>
                     </div>
                     <div class="col-span-2 text-center hidden md:block">
@@ -936,15 +940,21 @@
                     <div class="col-span-2 text-center text-slate-400 text-sm hidden md:block">
                         <i class="fa-solid fa-hourglass-half mr-1 text-slate-600"></i>${intervalText}
                     </div>
-                    <div class="col-span-6 md:col-span-2 text-center">
-                         <div class="font-mono font-bold text-lg md:text-xl timer-display ${isSpawned ? 'text-aion-success' : 'text-aion-gold'}" id="timer-${boss.id}">
-                            ${isSpawned ? '已重生' : '--:--:--'}
+                    <div class="col-span-6 md:col-span-3 text-center flex flex-col md:flex-row items-center justify-center gap-2">
+                        <div class="flex-1">
+                             <div class="font-mono font-bold text-lg md:text-xl timer-display ${isSpawned ? 'text-aion-success' : 'text-aion-gold'}" id="timer-${boss.id}">
+                                ${isSpawned ? '已重生' : '--:--:--'}
+                            </div>
+                            <div class="text-xs text-slate-500 mt-1 hidden sm:block" id="next-time-${boss.id}">
+                                ${isSpawned ? '請盡快擊殺' : `預計: ${formatTimeStr(boss.nextSpawn)}`}
+                            </div>
                         </div>
-                        <div class="text-xs text-slate-500 mt-1 hidden sm:block" id="next-time-${boss.id}">
-                            ${isSpawned ? '請盡快擊殺' : `預計: ${formatTimeStr(boss.nextSpawn)}`}
+                        <div class="text-xs text-slate-600 font-mono hidden md:block" title="上次擊殺時間">
+                            <i class="fa-solid fa-clock-rotate-left mr-1"></i>
+                            <span id="last-kill-${boss.id}">${boss.lastKill > 0 ? formatTimeStr(boss.lastKill) : '--:--'}</span>
                         </div>
                     </div>
-                    <div class="col-span-2 lg:col-span-3 flex justify-end gap-2">
+                    <div class="col-span-2 lg:col-span-2 flex justify-end gap-2">
                         <button onclick="openTimeEdit(${boss.id})" class="p-2 text-slate-400 hover:text-white bg-slate-700/50 hover:bg-slate-700 rounded transition" title="修改擊殺時間">
                             <i class="fa-solid fa-pen-to-square"></i>
                         </button>
@@ -981,7 +991,14 @@
             bosses.forEach(boss => {
                 const timerEl = document.getElementById(`timer-${boss.id}`);
                 const nextTimeEl = document.getElementById(`next-time-${boss.id}`);
+                const lastKillEl = document.getElementById(`last-kill-${boss.id}`);
+                
                 if (!timerEl) return;
+
+                // Update last kill time display dynamically if needed (though it's static until action)
+                if (lastKillEl && boss.lastKill > 0) {
+                     lastKillEl.innerText = formatTimeStr(boss.lastKill);
+                }
 
                 if (boss.nextSpawn <= now && !boss.fixedSchedule && boss.lastKill > 0) { 
                     const timeSinceSpawn = now - boss.nextSpawn;
